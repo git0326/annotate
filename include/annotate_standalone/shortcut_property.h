@@ -1,0 +1,31 @@
+#pragma once
+
+#include <rviz/properties/string_property.h>
+#include <QShortcut>
+
+namespace annotate
+{
+class AnnotateDisplay;
+
+class ShortcutProperty : public rviz::StringProperty
+{
+  Q_OBJECT
+public:
+  ShortcutProperty(const QString& name = QString(), const QString& default_value = QString(),
+                   const QString& description = QString(), rviz::Property* parent = 0, const char* changed_slot = 0,
+                   QObject* receiver = 0);
+
+  void createShortcut(AnnotateDisplay* display, QWidget* target, QObject* receiver, const char* trigger_slot);
+  void setEnabled(bool enabled);
+
+private Q_SLOTS:
+  void updateShortcut();
+  void handleAmbiguousShortcut();
+
+private:
+  QString statusName() const;
+  QShortcut* shortcut_{ nullptr };
+  AnnotateDisplay* display_{ nullptr };
+};
+
+}  // namespace annotate

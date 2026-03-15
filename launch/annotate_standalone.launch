@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<launch>
+  <arg name="bag" default="" />
+  <arg name="config" default="$(find annotate_standalone)/launch/default.rviz" />
+  <param name="/use_sim_time" value="true" />
+  <node name="annotate_standalone" pkg="annotate_standalone" type="annotate_standalone_node" output="screen"
+        args="$(arg bag) -d $(arg config)" />
+</launch>
