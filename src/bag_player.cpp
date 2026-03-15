@@ -79,6 +79,7 @@ void BagPlayer::close()
   frame_index_.clear();
   current_frame_ = -1;
   static_transforms_.clear();
+  cloud_frame_id_.clear();
   Q_EMIT bagClosed();
 }
 
@@ -257,15 +258,19 @@ void BagPlayer::publishFrame(int index)
   current_frame_ = index;
   ros::Time frame_time = frame_index_[index].time;
 
-  // Publish clock first so the rest of the system sees correct sim time
-  publishClock(frame_time);
-
-  // Publish TF data
+  // Publish TF data before advancing clock so the buffer is populated when
+  // RViz's TF listener checks at the new sim time
   publishStaticTf();
   publishTf(frame_time);
 
-  // Small delay to allow TF listener to process transforms
-  ros::WallDuration(0.02).sleep();
+  // Allow the async spinner to process TF messages before advancing the clock
+  ros::WallDuration(0.05).sleep();
+
+  // Now publish clock so the rest of the system sees the correct sim time
+  publishClock(frame_time);
+
+  // Allow the clock to propagate before the point cloud arrives
+  ros::WallDuration(0.05).sleep();
 
   // Publish the point cloud message for this frame
   ros::Time start = frame_time - ros::Duration(0.001);
@@ -294,7 +299,8 @@ void BagPlayer::publishTf(ros::Time time)
   ros::Time tf_start = (time - bag_start > ros::Duration(2.0)) ? time - ros::Duration(2.0) : bag_start;
   ros::Time tf_end = time + ros::Duration(0.1);
 
-  std::vector<std::string> tf_topics = { "/tf" };
+  // Bags may store TF under either "tf" or "/tf" depending on the recorder
+  std::vector<std::string> tf_topics = { "/tf", "tf" };
   try
   {
     rosbag::View tf_view(*bag_, rosbag::TopicQuery(tf_topics), tf_start, tf_end);
@@ -342,9 +348,20 @@ void BagPlayer::loadFrameIndex()
   for (auto it = view.begin(); it != view.end(); ++it)
   {
     frame_index_.push_back({ it->getTime() });
+    // Grab frame_id from the first message so the Fixed Frame can be set to match
+    if (cloud_frame_id_.empty())
+    {
+      auto cloud = it->instantiate<sensor_msgs::PointCloud2>();
+      if (cloud && !cloud->header.frame_id.empty())
+      {
+        cloud_frame_id_ = cloud->header.frame_id;
+        Q_EMIT cloudFrameIdChanged(QString::fromStdString(cloud_frame_id_));
+      }
+    }
   }
 
-  ROS_INFO_STREAM("Loaded " << frame_index_.size() << " frames from topic " << topic_);
+  ROS_INFO_STREAM("Loaded " << frame_index_.size() << " frames from topic " << topic_
+                             << " (frame_id: " << cloud_frame_id_ << ")");
 }
 
 void BagPlayer::cacheStaticTf()
@@ -353,7 +370,8 @@ void BagPlayer::cacheStaticTf()
   if (!bag_)
     return;
 
-  std::vector<std::string> topics = { "/tf_static" };
+  // Bags may store TF under either "tf_static" or "/tf_static" depending on the recorder
+  std::vector<std::string> topics = { "/tf_static", "tf_static" };
   try
   {
     rosbag::View view(*bag_, rosbag::TopicQuery(topics));

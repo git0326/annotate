@@ -51,6 +51,7 @@ Q_SIGNALS:
   void bagClosed();
   void frameChanged(int frame, int total);
   void playbackStateChanged(bool playing);
+  void cloudFrameIdChanged(const QString& frame_id);
 
 private Q_SLOTS:
   void publishNext();
@@ -77,6 +78,7 @@ private:
   std::vector<FrameEntry> frame_index_;
   int current_frame_{ -1 };
 
+  std::string cloud_frame_id_;
   std::vector<geometry_msgs::TransformStamped> static_transforms_;
 
   ros::NodeHandle nh_;
